@@ -1,11 +1,8 @@
-"""Clientes SIMULADOS con datos de prueba. Reemplazar por clientes httpx cuando los otros
-servicios estén listos (misma interfaz definida en base.py)."""
-import logging
+"""Clientes simulados usados únicamente por las pruebas."""
+from datetime import time
 from app.config import servicios_simulados_caidos
 from app.errors import ServicioNoDisponible, UsuarioNoEncontrado
-from app.schemas import PerfilEstudiante, Materia, Disponibilidad, ResultadoMatch
-
-log = logging.getLogger("matching")
+from app.schemas import PerfilEstudiante, Materia, Disponibilidad, FranjaDisponibilidad
 
 
 class _Simulado:
@@ -44,12 +41,34 @@ PERFILES = [
 ]
 
 DISPONIBILIDAD = [
-    Disponibilidad(usuario_id=25, dias_disponibles=["lunes", "miércoles"], modalidad="virtual"),
-    Disponibilidad(usuario_id=12, dias_disponibles=["lunes", "viernes"], modalidad="virtual"),
-    Disponibilidad(usuario_id=31, dias_disponibles=["lunes"], modalidad="presencial"),
-    Disponibilidad(usuario_id=40, dias_disponibles=["jueves"], modalidad="virtual"),
-    Disponibilidad(usuario_id=50, dias_disponibles=["martes"], modalidad="virtual"),
-    Disponibilidad(usuario_id=60, dias_disponibles=["lunes"], modalidad="virtual"),
+    Disponibilidad(usuario_id=25, franjas=[
+        FranjaDisponibilidad(dia_semana="lunes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+        FranjaDisponibilidad(dia_semana="miércoles", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+    ]),
+    Disponibilidad(usuario_id=12, franjas=[
+        FranjaDisponibilidad(dia_semana="lunes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+        FranjaDisponibilidad(dia_semana="viernes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+    ]),
+    Disponibilidad(usuario_id=31, franjas=[
+        FranjaDisponibilidad(dia_semana="lunes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="presencial"),
+    ]),
+    Disponibilidad(usuario_id=40, franjas=[
+        FranjaDisponibilidad(dia_semana="jueves", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+    ]),
+    Disponibilidad(usuario_id=50, franjas=[
+        FranjaDisponibilidad(dia_semana="martes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+    ]),
+    Disponibilidad(usuario_id=60, franjas=[
+        FranjaDisponibilidad(dia_semana="lunes", hora_inicio=time(10), hora_fin=time(11),
+                             modalidad="virtual"),
+    ]),
 ]
 
 
@@ -83,16 +102,3 @@ class MockGruposClient(_Simulado):
     async def obtener_disponibilidad(self, usuario_id: int) -> Disponibilidad | None:
         self._verificar()
         return next((d for d in DISPONIBILIDAD if d.usuario_id == usuario_id), None)
-
-
-class MockNotificacionesClient(_Simulado):
-    nombre = "notificaciones"
-
-    def __init__(self, caido: bool = False):
-        super().__init__(caido)
-        self.enviados: list[ResultadoMatch] = []
-
-    async def enviar(self, resultado: ResultadoMatch) -> None:
-        self._verificar()
-        self.enviados.append(resultado)
-        log.info("[MOCK Notificaciones] %s", resultado.model_dump())

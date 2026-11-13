@@ -1,7 +1,8 @@
 # StudyMatch – Servicio de Matching (contrato v1.0)
 
-Microservicio FastAPI. Usa **datos de prueba (mocks)** y almacenamiento en memoria
-mientras los demás servicios y la base de datos no estén disponibles.
+Microservicio FastAPI que obtiene usuarios, materias, intereses y disponibilidad
+de PostgreSQL (Neon). No crea ni requiere una tabla `matching`; `match_id` se
+genera en memoria y el endpoint de detalle no está habilitado.
 
 ## Ejecutar
 ```bash
@@ -11,32 +12,35 @@ uvicorn app.main:app --reload --port 8000
 ```
 Documentación interactiva: http://localhost:8000/docs
 
+## Conectar con Neon
+
+Define `DATABASE_URL` en el entorno de ejecución con la cadena de conexión de Neon
+(incluyendo SSL). No la guardes en el repositorio ni la compartas en logs. En
+Windows, configura la variable en las variables de entorno de usuario/sistema y
+reinicia la terminal antes de ejecutar el servicio. Sin ella, `/health` seguirá
+disponible pero el endpoint de matching responderá `503`.
+
+El servicio consulta:
+
+- `usuarios` y `usuario_materia` para perfiles y habilidades ofrecidas/necesitadas.
+- `materias` para el catálogo.
+- `disponibilidad` para franjas semanales, comparando el día y el solapamiento
+  entre `hora_inicio` y `hora_fin`. La modalidad se evalúa en las franjas coincidentes.
+
+Los niveles `basico` de la base se convierten en `principiante` para conservar
+los niveles del contrato.
+
 ## Probar
 ```bash
-curl http://localhost:8000/api/v1/matching/25
-curl http://localhost:8000/api/v1/matching/25/detalle/101
-curl "http://localhost:8000/api/v1/matching/25?modalidad=virtual&nivel_minimo=intermedio"
 python -m pytest -q
 ```
 
-## Simular caídas de otros servicios (Paso 11)
+## Ejecutar matching
+
+Con `DATABASE_URL` configurada:
+
 ```bash
-SIMULAR_CAIDA=grupos   uvicorn app.main:app      # -> compatibilidad parcial
-SIMULAR_CAIDA=usuarios uvicorn app.main:app      # -> 503
+uvicorn app.main:app --reload --port 8000
+curl http://localhost:8000/api/v1/matching/25
+curl "http://localhost:8000/api/v1/matching/25?modalidad=virtual&nivel_minimo=intermedio"
 ```
-(Windows PowerShell: `$env:SIMULAR_CAIDA="grupos"; uvicorn app.main:app`)
-
-## Usuarios de prueba
-| id | nombre | ofrece | necesita |
-|----|--------|--------|----------|
-| 25 | Ana | Python | Bases de Datos |
-| 12 | Carlos | Bases de Datos | Python |
-| 31 | Laura | Bases de Datos, Redes | Python |
-| 40 | Pedro | Redes | Bases de Datos |
-| 50 | Sofía | Bases de Datos | Redes |
-| 60 | Marta | – | Cálculo (nadie lo ofrece → 404) |
-
-## Cuando lleguen los servicios reales
-1. Crear `app/clients/http_clients.py` con clases `httpx` que cumplan las interfaces de `clients/base.py`.
-2. Cambiar los mocks por esos clientes en `app/dependencies.py`.
-3. Cambiar `app/store.py` por el repositorio de la BD (mismos métodos `guardar` / `obtener`).

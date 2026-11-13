@@ -1,18 +1,26 @@
-"""Ensamblaje de dependencias (un solo lugar para cambiar mocks por clientes reales)."""
-from functools import lru_cache
+"""Ensamblaje de los clientes del servicio."""
+from fastapi import Request
 
-from app.clients.mock_clients import (MockGruposClient, MockMateriasClient,
-                                      MockNotificacionesClient, MockUsuariosClient)
+from app.clients.postgres_clients import (PostgresGruposClient, PostgresMateriasClient,
+                                         PostgresUsuariosClient)
+from app.errors import ServicioNoDisponible
 from app.services.matching_service import MatchingService
 from app.store import MatchStore
 
 
-@lru_cache
-def get_service() -> MatchingService:
+def get_service(request: Request) -> MatchingService:
+    service = getattr(request.app.state, "matching_service", None)
+    if service is None:
+        raise ServicioNoDisponible(
+            "base_de_datos", "Configura DATABASE_URL para habilitar el matching"
+        )
+    return service
+
+
+def crear_service(pool) -> MatchingService:
     return MatchingService(
-        usuarios=MockUsuariosClient(),
-        materias=MockMateriasClient(),
-        grupos=MockGruposClient(),
-        notificaciones=MockNotificacionesClient(),
+        usuarios=PostgresUsuariosClient(pool),
+        materias=PostgresMateriasClient(pool),
+        grupos=PostgresGruposClient(pool),
         store=MatchStore(),
     )

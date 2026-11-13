@@ -1,6 +1,6 @@
 """Interfaces de los clientes. El servicio de matching depende de ESTO, no de HTTP ni de mocks."""
 from typing import Protocol
-from app.schemas import PerfilEstudiante, Materia, Disponibilidad, ResultadoMatch
+from app.schemas import PerfilEstudiante, Materia, Disponibilidad
 
 
 class UsuariosClient(Protocol):
@@ -14,7 +14,3 @@ class MateriasClient(Protocol):
 
 class GruposClient(Protocol):
     async def obtener_disponibilidad(self, usuario_id: int) -> Disponibilidad | None: ...
-
-
-class NotificacionesClient(Protocol):
-    async def enviar(self, resultado: ResultadoMatch) -> None: ...

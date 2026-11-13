@@ -1,4 +1,5 @@
 """Schemas Pydantic: definen la forma de los datos del contrato (Pasos 3, 6 y 8)."""
+from datetime import time
 from typing import Literal
 from pydantic import BaseModel, Field
 
@@ -13,6 +14,7 @@ class PerfilEstudiante(BaseModel):  # 3.1 Usuarios e Intereses
     habilidades_ofrece: list[int]
     habilidades_necesita: list[int]
     nivel: Nivel | None = None
+    niveles_habilidades: dict[int, Nivel] = Field(default_factory=dict)
 
 
 class Materia(BaseModel):  # 3.2 Materias
@@ -21,10 +23,16 @@ class Materia(BaseModel):  # 3.2 Materias
     categoria: str | None = None
 
 
+class FranjaDisponibilidad(BaseModel):
+    dia_semana: str
+    hora_inicio: time
+    hora_fin: time
+    modalidad: Modalidad | None = None
+
+
 class Disponibilidad(BaseModel):  # 3.3 Grupos
     usuario_id: int = Field(gt=0)
-    dias_disponibles: list[str]
-    modalidad: Modalidad
+    franjas: list[FranjaDisponibilidad]
 
 
 # ---------- Salida hacia Notificaciones y Chat ----------

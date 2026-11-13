@@ -2,21 +2,33 @@
 import logging
 import unicodedata
 
-from app.clients.base import UsuariosClient, MateriasClient, GruposClient, NotificacionesClient
-from app.errors import ServicioNoDisponible, SinCoincidencias, MatchNoEncontrado
-from app.schemas import (Coincidencia, Criterios, DetalleMatch, Disponibilidad,
-                         PerfilEstudiante, RespuestaMatching, ResultadoMatch)
+from app.clients.base import UsuariosClient, MateriasClient, GruposClient
+from app.errors import ServicioNoDisponible, SinCoincidencias
+from app.schemas import (Coincidencia, Disponibilidad, FranjaDisponibilidad, Nivel,
+                         PerfilEstudiante, RespuestaMatching)
 from app.store import MatchStore
 
 log = logging.getLogger("matching")
 
-ORDEN_NIVEL = {"principiante": 1, "intermedio": 2, "avanzado": 3}
+ORDEN_NIVEL: dict[Nivel, int] = {"principiante": 1, "intermedio": 2, "avanzado": 3}
 
 
 def _normalizar_dia(dia: str) -> str:
     """'Miércoles' y 'miercoles' deben ser el mismo día."""
     sin_tildes = unicodedata.normalize("NFD", dia.strip().lower())
     return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn")
+
+
+def _nivel_para_habilidad(perfil: PerfilEstudiante, habilidad_id: int) -> Nivel | None:
+    return perfil.niveles_habilidades.get(habilidad_id, perfil.nivel)
+
+
+def _franjas_se_solapan(a: FranjaDisponibilidad, b: FranjaDisponibilidad) -> bool:
+    return (
+        _normalizar_dia(a.dia_semana) == _normalizar_dia(b.dia_semana)
+        and a.hora_inicio < b.hora_fin
+        and b.hora_inicio < a.hora_fin
+    )
 
 
 def evaluar_criterios(solicitante: PerfilEstudiante, candidato: PerfilEstudiante,
@@ -28,17 +40,29 @@ def evaluar_criterios(solicitante: PerfilEstudiante, candidato: PerfilEstudiante
         "habilidad": (habilidad_id in candidato.habilidades_ofrece
                       and habilidad_id in solicitante.habilidades_necesita),
         # Un tutor debe tener nivel igual o superior al de quien aprende.
-        "nivel": bool(solicitante.nivel and candidato.nivel
-                      and ORDEN_NIVEL[candidato.nivel] >= ORDEN_NIVEL[solicitante.nivel]),
+        "nivel": bool(
+            _nivel_para_habilidad(solicitante, habilidad_id)
+            and _nivel_para_habilidad(candidato, habilidad_id)
+            and ORDEN_NIVEL[_nivel_para_habilidad(candidato, habilidad_id)]
+            >= ORDEN_NIVEL[_nivel_para_habilidad(solicitante, habilidad_id)]
+        ),
         "disponibilidad": None,
         "modalidad": None,
     }
     if usar_disponibilidad:
         if disp_sol and disp_can:
-            dias_a = {_normalizar_dia(d) for d in disp_sol.dias_disponibles}
-            dias_b = {_normalizar_dia(d) for d in disp_can.dias_disponibles}
-            criterios["disponibilidad"] = bool(dias_a & dias_b)
-            criterios["modalidad"] = disp_sol.modalidad == disp_can.modalidad
+            franjas_comunes = [
+                (franja_sol, franja_can)
+                for franja_sol in disp_sol.franjas
+                for franja_can in disp_can.franjas
+                if _franjas_se_solapan(franja_sol, franja_can)
+            ]
+            criterios["disponibilidad"] = bool(franjas_comunes)
+            criterios["modalidad"] = any(
+                franja_sol.modalidad is not None
+                and franja_sol.modalidad == franja_can.modalidad
+                for franja_sol, franja_can in franjas_comunes
+            )
         else:  # falta el registro de alguno: no hay coincidencia horaria posible
             criterios["disponibilidad"] = False
             criterios["modalidad"] = False
@@ -52,12 +76,10 @@ def calcular_porcentaje(criterios: dict) -> float:
 
 class MatchingService:
     def __init__(self, usuarios: UsuariosClient, materias: MateriasClient,
-                 grupos: GruposClient, notificaciones: NotificacionesClient,
-                 store: MatchStore):
+                 grupos: GruposClient, store: MatchStore):
         self.usuarios = usuarios
         self.materias = materias
         self.grupos = grupos
-        self.notificaciones = notificaciones
         self.store = store
 
     async def buscar_coincidencias(self, usuario_id: int, modalidad: str | None = None,
@@ -87,17 +109,20 @@ class MatchingService:
                     continue
                 if habilidad_id not in cand.habilidades_ofrece:
                     continue
-                if nivel_minimo and not (cand.nivel and
-                                         ORDEN_NIVEL[cand.nivel] >= ORDEN_NIVEL[nivel_minimo]):
+                nivel_candidato = _nivel_para_habilidad(cand, habilidad_id)
+                if nivel_minimo and not (nivel_candidato and
+                                         ORDEN_NIVEL[nivel_candidato] >= ORDEN_NIVEL[nivel_minimo]):
                     continue
                 disp_can = disponibilidades.get(cand.usuario_id)
                 # Si Grupos está caído no se puede filtrar por modalidad
-                if modalidad and not parcial and not (disp_can and disp_can.modalidad == modalidad):
+                if modalidad and not parcial and not (
+                    disp_can and any(f.modalidad == modalidad for f in disp_can.franjas)
+                ):
                     continue
                 criterios = evaluar_criterios(solicitante, cand, habilidad_id,
                                               disponibilidades.get(solicitante.usuario_id),
                                               disp_can, usar_disponibilidad=not parcial)
-                encontrados.append((calcular_porcentaje(criterios), cand, habilidad_id, criterios))
+                encontrados.append((calcular_porcentaje(criterios), cand, habilidad_id))
 
         if not encontrados:
             raise SinCoincidencias(f"El usuario {usuario_id} no tiene coincidencias")
@@ -106,37 +131,12 @@ class MatchingService:
         encontrados.sort(key=lambda t: (-t[0], t[1].usuario_id))
 
         coincidencias = []
-        for porcentaje, cand, habilidad_id, criterios in encontrados:
-            match, es_nuevo = self.store.guardar(
-                usuario_id=usuario_id, usuario_match_id=cand.usuario_id,
-                habilidad_id=habilidad_id, habilidad=catalogo[habilidad_id].nombre,
-                criterios=criterios, porcentaje_match=porcentaje,
-                compatibilidad_parcial=parcial)
-            if es_nuevo:
-                await self._notificar(match.match_id, usuario_id, cand.usuario_id,
-                                      habilidad_id, porcentaje)
+        for porcentaje, cand, habilidad_id in encontrados:
+            match_id = self.store.obtener_o_crear(
+                usuario_id, cand.usuario_id, habilidad_id)
             coincidencias.append(Coincidencia(
-                match_id=match.match_id, usuario_match_id=cand.usuario_id,
-                nombre_match=cand.nombre, habilidad=match.habilidad,
+                match_id=match_id, usuario_match_id=cand.usuario_id,
+                nombre_match=cand.nombre, habilidad=catalogo[habilidad_id].nombre,
                 porcentaje_match=porcentaje, compatibilidad_parcial=parcial))
 
         return RespuestaMatching(usuario_id=usuario_id, coincidencias=coincidencias)
-
-    async def detalle(self, usuario_id: int, match_id: int) -> DetalleMatch:
-        m = self.store.obtener(match_id)
-        if m is None or m.usuario_id != usuario_id:
-            raise MatchNoEncontrado(f"El match {match_id} no existe para el usuario {usuario_id}")
-        return DetalleMatch(
-            match_id=m.match_id, usuario_id=m.usuario_id, usuario_match_id=m.usuario_match_id,
-            habilidad=m.habilidad, criterios=Criterios(**m.criterios),
-            porcentaje_match=m.porcentaje_match,
-            compatibilidad_parcial=m.compatibilidad_parcial)
-
-    async def _notificar(self, match_id, usuario_id, usuario_match_id, habilidad_id, porcentaje):
-        """Si Notificaciones falla, el matching NO debe fallar: solo se registra."""
-        try:
-            await self.notificaciones.enviar(ResultadoMatch(
-                match_id=match_id, usuario_id=usuario_id, usuario_match_id=usuario_match_id,
-                habilidad_id=habilidad_id, porcentaje_match=porcentaje))
-        except Exception as exc:
-            log.error("No se pudo notificar el match %s: %s", match_id, exc)
