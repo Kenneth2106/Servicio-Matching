@@ -14,11 +14,21 @@ Documentación interactiva: http://localhost:8000/docs
 
 ## Conectar con Neon
 
-Define `DATABASE_URL` en el entorno de ejecución con la cadena de conexión de Neon
-(incluyendo SSL). No la guardes en el repositorio ni la compartas en logs. En
-Windows, configura la variable en las variables de entorno de usuario/sistema y
-reinicia la terminal antes de ejecutar el servicio. Sin ella, `/health` seguirá
-disponible pero el endpoint de matching responderá `503`.
+Para desarrollo local puedes crear un archivo `.env` en la raíz del proyecto:
+
+```env
+DATABASE_URL=postgresql://USUARIO:CLAVE@HOST:5432/BASE
+```
+
+La aplicación carga ese archivo al iniciar. `.env` está excluido de Git: no lo
+fuerces al repositorio ni compartas su contenido. Una variable `DATABASE_URL`
+configurada directamente en el entorno tiene prioridad sobre el valor de `.env`.
+La conexión a PostgreSQL requiere SSL.
+
+En el servidor de despliegue también habrá que configurar `DATABASE_URL` de forma
+segura. Un `.env` que solo exista en esta máquina no se copia al servidor con
+`git clone`. Sin la variable, `/health` seguirá disponible pero el endpoint de
+matching responderá `503`.
 
 El servicio consulta:
 

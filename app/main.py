@@ -4,10 +4,13 @@ from contextlib import asynccontextmanager
 
 import asyncpg
 from fastapi import FastAPI
+from dotenv import load_dotenv
 
 from app.dependencies import crear_service
 from app.errors import registrar_handlers
 from app.routers import matching
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
