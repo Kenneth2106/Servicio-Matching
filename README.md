@@ -45,6 +45,39 @@ los niveles del contrato.
 python -m pytest -q
 ```
 
+## Interfaz integrada con StudyMatch
+
+La interfaz del módulo está en `app/static` y se sirve desde la misma aplicación
+FastAPI. En desarrollo se abre en http://localhost:8000; el Frontend anfitrión
+debe incrustar esa URL en su iframe. El módulo envía `LISTO` y `ACTIVIDAD`,
+recibe `SESION` y limpia la pantalla al recibir `CERRAR_SESION`. El token se
+mantiene solo en memoria y se envía al API Gateway como Bearer.
+
+Configura estas variables en el entorno de ejecución o en `.env`:
+
+```env
+STUDYMATCH_FRONTEND_ORIGIN=http://localhost:4200
+STUDYMATCH_MATCHING_API_BASE=https://<URL-DEL-GATEWAY>/api/v1/matching
+```
+
+`STUDYMATCH_MATCHING_API_BASE` es la ruta base del endpoint de Matching a través
+del Gateway; la interfaz agrega `/{usuario_id}` y los filtros `modalidad` y
+`nivel_minimo`. Si el Gateway usa otra ruta, configura esa ruta exacta. La
+interfaz no consulta directamente el servicio de Render cuando esta variable no
+está definida.
+
+En Render configura las mismas variables en Environment. Usa el origen exacto
+del Frontend publicado para `STUDYMATCH_FRONTEND_ORIGIN`; ese valor se usa en
+`frame-ancestors` y en la validación de `postMessage`. El API Gateway debe
+permitir CORS desde el origen público de esta interfaz (el dominio del módulo
+que carga el iframe) y aceptar el encabezado `Authorization`.
+El Gateway también debe incluir sus encabezados CORS en respuestas de error
+(incluidos los `401`) para que el módulo pueda notificar una sesión inválida.
+
+Las coincidencias se vuelven a consultar al aplicar o limpiar filtros; el
+`match_id` continúa siendo generado en memoria por el servicio y no representa
+un registro persistido.
+
 ## Ejecutar matching
 
 Con `DATABASE_URL` configurada:

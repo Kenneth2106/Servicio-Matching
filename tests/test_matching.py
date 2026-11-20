@@ -96,6 +96,27 @@ def test_health():
     assert c.get("/health").json()["status"] == "ok"
 
 
+def test_frontend_served_with_gateway_and_parent_origin_config(monkeypatch):
+    monkeypatch.setenv(
+        "STUDYMATCH_MATCHING_API_BASE",
+        "https://gateway.example.com/api/v1/matching",
+    )
+    monkeypatch.setenv("STUDYMATCH_FRONTEND_ORIGIN", "https://frontend.example.com")
+    c = TestClient(app, raise_server_exceptions=False)
+
+    frontend = c.get("/")
+    config = c.get("/config.js")
+
+    assert frontend.status_code == 200
+    assert "Encuentra tu próximo" in frontend.text
+    assert frontend.headers["content-security-policy"] == (
+        "frame-ancestors https://frontend.example.com"
+    )
+    assert config.status_code == 200
+    assert '"matchingApiBase": "https://gateway.example.com/api/v1/matching"' in config.text
+    assert '"frontendOrigin": "https://frontend.example.com"' in config.text
+
+
 def test_disponibilidad_exige_dia_y_solapamiento_real():
     solicitante = PerfilEstudiante(
         usuario_id=1, nombre="A", habilidades_ofrece=[],

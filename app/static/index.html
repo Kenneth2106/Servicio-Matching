@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f8fc">
+    <title>StudyMatch | Matching</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/config.js"></script>
+    <script src="/studymatch-integracion.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="StudyMatch, inicio">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>Study<span class="brand-accent">Match</span></span>
+        </a>
+        <div class="session-indicator" id="session-indicator" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="session-status">Esperando la sesión del sistema...</span>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro">
+          <p class="eyebrow">APRENDER EN COMUNIDAD</p>
+          <h1>Encuentra tu próximo <span>match</span></h1>
+          <p class="intro-copy">
+            Conecta con estudiantes que pueden enseñarte lo que necesitas aprender.
+          </p>
+        </section>
+
+        <section class="filter-panel" aria-labelledby="filters-title">
+          <div class="filter-heading">
+            <div>
+              <p class="eyebrow">PERSONALIZA TU BÚSQUEDA</p>
+              <h2 id="filters-title">Filtros</h2>
+            </div>
+            <button class="text-button" id="clear-filters" type="button">Limpiar filtros</button>
+          </div>
+          <form id="filters-form" class="filters">
+            <label>
+              Modalidad
+              <select id="modality-filter" name="modalidad">
+                <option value="">Todas las modalidades</option>
+                <option value="virtual">Virtual</option>
+                <option value="presencial">Presencial</option>
+              </select>
+            </label>
+            <label>
+              Nivel mínimo del tutor
+              <select id="level-filter" name="nivel_minimo">
+                <option value="">Cualquier nivel</option>
+                <option value="principiante">Principiante</option>
+                <option value="intermedio">Intermedio</option>
+                <option value="avanzado">Avanzado</option>
+              </select>
+            </label>
+            <button class="primary-button" type="submit">
+              <span aria-hidden="true">⌕</span>
+              Aplicar filtros
+            </button>
+          </form>
+        </section>
+
+        <section class="matches-section" aria-labelledby="matches-title">
+          <div class="results-heading">
+            <div>
+              <p class="eyebrow">COMPATIBILIDADES PARA TI</p>
+              <h2 id="matches-title">Tus matches</h2>
+            </div>
+            <span class="result-count" id="result-count">— resultados</span>
+          </div>
+          <div class="notice" id="feedback" role="status" aria-live="polite">
+            Esperando la sesión para cargar tus coincidencias.
+          </div>
+          <div class="match-grid" id="match-list" aria-live="polite"></div>
+        </section>
+      </main>
+
+      <footer>
+        <span class="footer-mark" aria-hidden="true">✦</span>
+        <span>StudyMatch · Aprende y comparte</span>
+      </footer>
+    </div>
+  </body>
+</html>
